@@ -1,0 +1,42 @@
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background: #f4f4f4;
+    color: #333;
+}
+
+header {
+    text-align: center;
+    padding: 2rem 1rem;
+    background: #fff;
+    box-shadow: 0px 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+h1 {
+    margin-bottom: 0.5rem;
+}
+
+main {
+    padding: 1rem;
+    overflow: hidden;
+    position: relative;
+}
+
+h2 {
+    margin-bottom: 0.5rem;
+}
+
+body img {
+    width: 240px;
+    height: 180px;
+    object-fit: contain; /* Ensure images fit without cropping */
+    margin-bottom: 0.5rem; /* Add spacing below image */
+}
+
+body video {
+    width: 240px;
+    height: 180px;
+    object-fit: contain; /* Ensure images fit without cropping */
+    margin-bottom: 0.5rem; /* Add spacing below image */
+}
