@@ -29,8 +29,28 @@ public class PlayerController : MonoBehaviour
     [Tooltip("Key to manual fire if not using auto-fire")]
     public KeyCode fireKey = KeyCode.Space;
 
+    [Header("Sound Settings")]
+    [Tooltip("Audio source for movement sounds")]
+    public AudioSource movementAudioSource;
+
+    [Tooltip("Sound to play when moving")]
+    public AudioClip movementSound;
+
+    [Tooltip("Minimum velocity magnitude required to play movement sound")]
+    public float movementSoundThreshold = 0.1f;
+
+    [Tooltip("How quickly the sound volume changes based on speed")]
+    public float volumeChangeSpeed = 5.0f;
+
+    [Tooltip("Maximum volume for movement sound")]
+    [Range(0, 1)]
+    public float maxVolume = 1.0f;
+
     // Current velocity of the player
     private Vector3 currentVelocity = Vector3.zero;
+
+    // Target volume for movement sound
+    private float targetVolume = 0f;
 
     void Start()
     {
@@ -38,6 +58,29 @@ public class PlayerController : MonoBehaviour
         if (weaponController == null)
         {
             weaponController = GetComponentInChildren<WeaponController>();
+        }
+
+        // Set up audio source if not assigned
+        if (movementAudioSource == null)
+        {
+            // Try to find an existing audio source
+            movementAudioSource = GetComponent<AudioSource>();
+
+            // If none exists, create one
+            if (movementAudioSource == null)
+            {
+                movementAudioSource = gameObject.AddComponent<AudioSource>();
+            }
+        }
+
+        // Configure the audio source
+        if (movementAudioSource != null && movementSound != null)
+        {
+            movementAudioSource.clip = movementSound;
+            movementAudioSource.loop = true;
+            movementAudioSource.volume = 0f;
+            movementAudioSource.playOnAwake = false;
+            movementAudioSource.Play();
         }
     }
 
@@ -61,6 +104,8 @@ public class PlayerController : MonoBehaviour
 
         // Handle mouse aiming and shooting
         HandleAimingAndShooting();
+
+        UpdateMovementSound();
     }
 
     void HandleMouseFollowMovement()
@@ -216,6 +261,43 @@ public class PlayerController : MonoBehaviour
             // Draw a line from player to target (yellow for mouse follow, green for WASD aim)
             Gizmos.color = mouseFollowMode ? Color.yellow : Color.green;
             Gizmos.DrawLine(transform.position, targetPoint);
+        }
+    }
+
+    void UpdateMovementSound()
+    {
+        if (movementAudioSource != null && movementSound != null)
+        {
+            // Determine target volume based on movement speed
+            if (currentVelocity.magnitude > movementSoundThreshold)
+            {
+                // Scale volume based on current speed, capped at max speed
+                float speedRatio = Mathf.Clamp01(currentVelocity.magnitude / maxSpeed);
+                targetVolume = speedRatio * maxVolume;
+
+                // Start sound if it's not playing
+                if (!movementAudioSource.isPlaying)
+                {
+                    movementAudioSource.Play();
+                }
+            }
+            else
+            {
+                targetVolume = 0f;
+            }
+
+            // Smoothly adjust volume
+            movementAudioSource.volume = Mathf.Lerp(
+                movementAudioSource.volume,
+                targetVolume,
+                volumeChangeSpeed * Time.deltaTime
+            );
+
+            // Stop audio if volume becomes very small
+            if (movementAudioSource.volume < 0.01f && movementAudioSource.isPlaying)
+            {
+                movementAudioSource.Pause();
+            }
         }
     }
 }

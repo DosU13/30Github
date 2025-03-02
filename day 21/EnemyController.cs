@@ -1,29 +1,24 @@
 using UnityEngine;
 
+using UnityEngine;
+
 public class EnemyController : MonoBehaviour
 {
     [Header("Target Settings")]
-    //[Tooltip("The player GameObject this enemy will follow")]
     public Transform playerTransform;
 
     [Header("Movement Settings")]
-    //[Tooltip("Constant movement speed in units per second")]
     public float moveSpeed = 3.0f;
-
-    //[Tooltip("How quickly the enemy rotates to face movement direction")]
     public float rotationSpeed = 8.0f;
 
     [Header("Detection Settings")]
-    //[Tooltip("Maximum distance to detect and follow the player")]
     public float detectionRange = 20.0f;
-
-    //[Tooltip("Minimum distance to maintain from player")]
     public float minimumDistance = 1.0f;
 
-    // Reference to the enemy's rigidbody for physics movement
-    private Rigidbody rb;
+    [Header("Damage Settings")]
+    public int damageAmount = 10;  // Add this to set damage amount
 
-    // Flag to track movement method
+    private Rigidbody rb;
     private bool usingRigidbody = false;
 
     void Start()
@@ -57,11 +52,73 @@ public class EnemyController : MonoBehaviour
                 Debug.LogWarning("Player not found. Please assign the player transform manually.");
             }
         }
+
+        rb = GetComponent<Rigidbody>();
+        usingRigidbody = (rb != null);
+
+        if (usingRigidbody)
+        {
+            rb.freezeRotation = true;
+            rb.useGravity = true;
+        }
+
+        if (playerTransform == null)
+        {
+            GameObject player = GameObject.FindGameObjectWithTag("Player");
+            if (player != null)
+            {
+                playerTransform = player.transform;
+            }
+            else
+            {
+                Debug.LogWarning("Player not found. Please assign the player transform manually.");
+            }
+        }
     }
 
+    // Add this method to detect collisions
+    void OnCollisionEnter(Collision collision)
+    {
+        // Check if we collided with the player
+        if (collision.gameObject.CompareTag("Player"))
+        {
+            // Try to get the PlayerHealth component
+            PlayerHealth playerHealth = collision.gameObject.GetComponent<PlayerHealth>();
+
+            // If the player has a health component, damage them
+            if (playerHealth != null)
+            {
+                playerHealth.TakeDamage(damageAmount);
+            }
+
+            // Destroy this enemy after hitting the player
+            Destroy(gameObject);
+        }
+    }
+
+    // Add this alternative method for trigger colliders
+    void OnTriggerEnter(Collider other)
+    {
+        // Check if we collided with the player
+        if (other.CompareTag("Player"))
+        {
+            // Try to get the PlayerHealth component
+            PlayerHealth playerHealth = other.GetComponent<PlayerHealth>();
+
+            // If the player has a health component, damage them
+            if (playerHealth != null)
+            {
+                playerHealth.TakeDamage(damageAmount);
+            }
+
+            // Destroy this enemy after hitting the player
+            Destroy(gameObject);
+        }
+    }
+
+    // Rest of your existing code...
     void FixedUpdate()
     {
-        // Only use FixedUpdate for physics movement
         if (usingRigidbody)
         {
             MoveWithPhysics();
@@ -70,17 +127,14 @@ public class EnemyController : MonoBehaviour
 
     void Update()
     {
-        // Skip if no player is assigned
         if (playerTransform == null)
             return;
 
-        // For non-Rigidbody movement, handle in Update
         if (!usingRigidbody)
         {
             MoveWithTransform();
         }
 
-        // Always handle rotation in Update for smoother visual updates
         Vector3 directionToPlayer = GetDirectionToPlayer();
         if (directionToPlayer != Vector3.zero)
         {

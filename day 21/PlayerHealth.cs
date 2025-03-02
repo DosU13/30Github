@@ -1,3 +1,4 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
@@ -19,7 +20,7 @@ public class PlayerHealth : MonoBehaviour
     public Image healthBar;
 
     [Tooltip("Text to display current/max health")]
-    public Text healthText;
+    public TMP_Text healthText;
 
     [Header("Audio")]
     [Tooltip("Sound to play when taking damage")]
@@ -159,14 +160,45 @@ public class PlayerHealth : MonoBehaviour
 
         // Don't destroy the player object, just disable it
         // Alternatively, you could implement respawn logic here
+        gameObject.SetActive(false);
     }
 
+    private Vector2 originalSize = Vector2.zero;
     // Update health UI elements
     void UpdateHealthUI()
     {
         if (healthBar != null)
         {
-            healthBar.fillAmount = (float)currentHealth / maxHealth;
+            // If using a Slider component
+            if (healthBar.TryGetComponent<Slider>(out var slider))
+            {
+                slider.value = (float)currentHealth / maxHealth;
+            }
+            // If using an Image component with Fill method
+            else if (healthBar.TryGetComponent<Image>(out var image))
+            {
+                if (image.type == Image.Type.Filled)
+                {
+                    image.fillAmount = (float)currentHealth / maxHealth;
+                }
+                else
+                {
+                    // If the image is not set to filled type, adjust the width/height instead
+                    RectTransform rect = healthBar.GetComponent<RectTransform>();
+                    if (rect != null)
+                    {
+                        // Save original size if not saved yet
+                        if (originalSize == Vector2.zero)
+                        {
+                            originalSize = rect.sizeDelta;
+                        }
+
+                        // Adjust size based on health percentage
+                        float healthPercentage = (float)currentHealth / maxHealth;
+                        rect.sizeDelta = new Vector2(originalSize.x * healthPercentage, rect.sizeDelta.y);
+                    }
+                }
+            }
         }
 
         if (healthText != null)
