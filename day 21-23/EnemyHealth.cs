@@ -75,8 +75,12 @@ public class EnemyHealth : MonoBehaviour
     }
 
     // Handle enemy death
-    void Die()
+    public void Die()
     {
+        int score = PlayerPrefs.GetInt("Score", 0);
+        score += 100;
+        PlayerPrefs.SetInt("Score", score);
+        PlayerPrefs.Save();
         // Trigger death event
         OnDeath.Invoke();
 

@@ -6,7 +6,7 @@ public class EnemySpawner : MonoBehaviour
 {
     [Header("Spawn Settings")]
     [Tooltip("Enemy prefab to spawn")]
-    public GameObject enemyPrefab;
+    public List<GameObject> enemyPrefabs;
 
     [Tooltip("Target for spawned enemies to follow (usually the player)")]
     public Transform playerTarget;
@@ -158,7 +158,7 @@ public class EnemySpawner : MonoBehaviour
 
     void SpawnEnemy()
     {
-        if (enemyPrefab == null)
+        if (enemyPrefabs == null)
         {
             Debug.LogError("Enemy Prefab not assigned to spawner!");
             return;
@@ -167,6 +167,7 @@ public class EnemySpawner : MonoBehaviour
         // Determine spawn position
         Vector3 spawnPosition = DetermineSpawnPosition();
 
+        var enemyPrefab = enemyPrefabs[Random.Range(0, enemyPrefabs.Count)];
         // Instantiate the enemy
         GameObject newEnemy = Instantiate(enemyPrefab, spawnPosition, Quaternion.identity);
 
@@ -194,7 +195,7 @@ public class EnemySpawner : MonoBehaviour
             float xPos = playerTarget.position.x + distance * Mathf.Cos(angle);
             float zPos = playerTarget.position.z + distance * Mathf.Sin(angle);
 
-            spawnPos = new Vector3(xPos, 0f, zPos);
+            spawnPos = new Vector3(xPos, 0.3f, zPos);
         }
         else
         {

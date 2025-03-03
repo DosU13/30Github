@@ -1,5 +1,4 @@
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 public class WeaponController : MonoBehaviour
@@ -17,10 +16,6 @@ public class WeaponController : MonoBehaviour
     [Tooltip("Sound to play when shooting")]
     public AudioClip shootSound;
 
-    [Header("Auto-Fire Settings")]
-    [Tooltip("Whether weapon should automatically fire")]
-    public bool autoFire = false;
-
     [Header("Weapon Stats")]
     [Tooltip("Damage per projectile")]
     public int damage = 1;
@@ -31,35 +26,11 @@ public class WeaponController : MonoBehaviour
     [Tooltip("How long projectiles exist before auto-destruction")]
     public float projectileLifetime = 5f;
 
-    [Header("Weapon Type")]
-    [Tooltip("Shot pattern type")]
-    public ShotPatternType shotPattern = ShotPatternType.Single;
-
-    [Tooltip("Number of projectiles per shot (for multi/spread patterns)")]
-    public int projectilesPerShot = 1;
-
-    [Tooltip("Angle between projectiles (for spread patterns)")]
-    public float spreadAngle = 15f;
-
-    [Header("Targeting")]
-    [Tooltip("Whether to aim at mouse position or provided target")]
-    public bool useMouseAiming = true;
-
-    [Tooltip("External target transform (used when not using mouse aiming)")]
-    public Transform targetTransform;
-
-    // Enum for different shot patterns
-    public enum ShotPatternType
-    {
-        Single,     // Standard single shot
-        Spread,     // Multiple shots in a spread pattern
-        Circle      // Shots in all directions
-    }
-
     // Internal tracking
     private float nextFireTime = 0f;
     private Transform playerTransform;
     private AudioSource audioSource;
+    private bool isAnxious = false;
 
     void Start()
     {
@@ -83,34 +54,27 @@ public class WeaponController : MonoBehaviour
 
     void Update()
     {
-        // Handle auto-fire if enabled
-        if (autoFire && Time.time >= nextFireTime)
+        // Always auto-fire when possible
+        if (Time.time >= nextFireTime)
         {
             Fire();
         }
     }
 
-    // Public method to trigger shooting manually
-    public void Fire()
+    // Method to fire projectiles
+    void Fire()
     {
         if (projectilePrefab == null || Time.time < nextFireTime)
             return;
 
-        // Based on shot pattern, fire appropriate number of projectiles
-        switch (shotPattern)
-        {
-            case ShotPatternType.Single:
-                FireSingleProjectile();
-                break;
+        // Calculate spawn position
+        Vector3 spawnPosition = transform.position + transform.rotation * projectileSpawnOffset;
 
-            case ShotPatternType.Spread:
-                FireSpreadProjectiles();
-                break;
+        // Get aim direction (either mouse direction or random if anxious)
+        Vector3 aimDirection = isAnxious ? GetRandomDirection() : GetMouseAimDirection();
 
-            case ShotPatternType.Circle:
-                FireCircleProjectiles();
-                break;
-        }
+        // Spawn and setup projectile
+        SpawnProjectile(spawnPosition, aimDirection);
 
         // Play shoot sound if assigned
         if (audioSource != null && shootSound != null)
@@ -120,86 +84,6 @@ public class WeaponController : MonoBehaviour
 
         // Set next fire time
         nextFireTime = Time.time + fireRate;
-    }
-
-    // Enable or disable autofire
-    public void SetAutoFire(bool enabled)
-    {
-        autoFire = enabled;
-    }
-
-    // Set targeting mode
-    public void SetTargetingMode(bool useMouseTarget, Transform newTarget = null)
-    {
-        useMouseAiming = useMouseTarget;
-        targetTransform = newTarget;
-    }
-
-    // Fire a single projectile in the aiming direction
-    void FireSingleProjectile()
-    {
-        // Calculate spawn position
-        Vector3 spawnPosition = transform.position + transform.rotation * projectileSpawnOffset;
-
-        // Get aim direction based on targeting mode
-        Vector3 aimDirection = GetAimDirection();
-
-        // Spawn and setup projectile
-        SpawnProjectile(spawnPosition, aimDirection);
-    }
-
-    // Fire multiple projectiles in a spread pattern
-    void FireSpreadProjectiles()
-    {
-        // Calculate spawn position
-        Vector3 spawnPosition = transform.position + transform.rotation * projectileSpawnOffset;
-
-        // Get base direction from aim
-        Vector3 baseDirection = GetAimDirection();
-
-        // Calculate total spread angle
-        float totalSpreadAngle = spreadAngle * (projectilesPerShot - 1);
-        float startAngle = -totalSpreadAngle / 2f;
-
-        // Spawn projectiles across the spread
-        for (int i = 0; i < projectilesPerShot; i++)
-        {
-            // Calculate angle for this projectile
-            float angle = startAngle + (spreadAngle * i);
-
-            // Rotate base direction by this angle
-            Vector3 projectileDirection = Quaternion.Euler(0, angle, 0) * baseDirection;
-
-            // Spawn projectile
-            SpawnProjectile(spawnPosition, projectileDirection);
-        }
-    }
-
-    // Fire projectiles in all directions (360 degrees)
-    void FireCircleProjectiles()
-    {
-        // Calculate spawn position
-        Vector3 spawnPosition = transform.position + transform.rotation * projectileSpawnOffset;
-
-        // Calculate angle between projectiles
-        float angleBetween = 360f / projectilesPerShot;
-
-        // Spawn projectiles in a circle
-        for (int i = 0; i < projectilesPerShot; i++)
-        {
-            // Calculate angle for this projectile
-            float angle = i * angleBetween;
-
-            // Calculate direction using sin/cos
-            Vector3 projectileDirection = new Vector3(
-                Mathf.Sin(angle * Mathf.Deg2Rad),
-                0,
-                Mathf.Cos(angle * Mathf.Deg2Rad)
-            );
-
-            // Spawn projectile
-            SpawnProjectile(spawnPosition, projectileDirection);
-        }
     }
 
     // Helper method to spawn a single projectile
@@ -237,24 +121,6 @@ public class WeaponController : MonoBehaviour
         return projectileObj;
     }
 
-    // Get aim direction based on targeting mode
-    Vector3 GetAimDirection()
-    {
-        if (useMouseAiming)
-        {
-            return GetMouseAimDirection();
-        }
-        else if (targetTransform != null)
-        {
-            return GetTargetAimDirection();
-        }
-        else
-        {
-            // Default to forward direction if no target
-            return transform.forward;
-        }
-    }
-
     // Get aim direction based on mouse position
     Vector3 GetMouseAimDirection()
     {
@@ -279,16 +145,40 @@ public class WeaponController : MonoBehaviour
         return direction.normalized;
     }
 
-    // Get aim direction toward a specific target
-    Vector3 GetTargetAimDirection()
+    // Get random direction for anxious state
+    Vector3 GetRandomDirection()
     {
-        // Calculate direction to target
-        Vector3 direction = targetTransform.position - transform.position;
+        // Create a random direction on the XZ plane
+        float randomAngle = Random.Range(0f, 360f);
+        return new Vector3(
+            Mathf.Sin(randomAngle * Mathf.Deg2Rad),
+            0,
+            Mathf.Cos(randomAngle * Mathf.Deg2Rad)
+        ).normalized;
+    }
 
-        // Keep aiming on XZ plane (ignore Y differences)
-        direction.y = 0;
+    // Apply the Anxious debuff to make player shoot in random directions
+    public void GetAxious()
+    {
+        // Don't apply if already anxious
+        if (isAnxious)
+            return;
 
-        return direction.normalized;
+        // Set the anxious state
+        isAnxious = true;
+
+        // Start coroutine to restore normal aiming after delay
+        StartCoroutine(ClearAnxiousDebuff());
+    }
+
+    // Coroutine to clear the anxious debuff after duration
+    private IEnumerator ClearAnxiousDebuff()
+    {
+        // Wait for 2 seconds
+        yield return new WaitForSeconds(2f);
+
+        // Clear the anxious state
+        isAnxious = false;
     }
 
     // Draw gizmos for debugging
@@ -303,23 +193,8 @@ public class WeaponController : MonoBehaviour
         if (Application.isPlaying)
         {
             Gizmos.color = Color.blue;
-            Vector3 direction = GetAimDirection();
+            Vector3 direction = isAnxious ? GetRandomDirection() : GetMouseAimDirection();
             Gizmos.DrawRay(spawnPos, direction * 3f);
-
-            // Visualize spread (if using spread shot)
-            if (shotPattern == ShotPatternType.Spread && projectilesPerShot > 1)
-            {
-                Gizmos.color = Color.yellow;
-                float totalSpreadAngle = spreadAngle * (projectilesPerShot - 1);
-                float startAngle = -totalSpreadAngle / 2f;
-
-                // Draw line for first and last projectile in spread
-                Vector3 leftDirection = Quaternion.Euler(0, startAngle, 0) * direction;
-                Vector3 rightDirection = Quaternion.Euler(0, -startAngle, 0) * direction;
-
-                Gizmos.DrawRay(spawnPos, leftDirection * 3f);
-                Gizmos.DrawRay(spawnPos, rightDirection * 3f);
-            }
         }
     }
 }

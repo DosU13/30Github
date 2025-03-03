@@ -37,6 +37,9 @@ public class PlayerHealth : MonoBehaviour
     public UnityEvent OnDamaged;
     public UnityEvent OnHealed;
 
+    public GameObject DiePrefab;
+    public Button PlayBtn;
+
     // Internal variables
     private bool isInvincible = false;
     private float invincibilityTimer = 0f;
@@ -155,11 +158,15 @@ public class PlayerHealth : MonoBehaviour
             weaponController.enabled = false;
         }
 
-        // You could show game over screen here
-        Debug.Log("Player died!");
+        if (PlayBtn != null)
+            PlayBtn.gameObject.SetActive(true);
 
         // Don't destroy the player object, just disable it
         // Alternatively, you could implement respawn logic here
+        if (DiePrefab != null)
+        {
+            Instantiate(DiePrefab, transform.position, Quaternion.identity);
+        }
         gameObject.SetActive(false);
     }
 
