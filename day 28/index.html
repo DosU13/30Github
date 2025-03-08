@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Turing Pattern Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+        }
+        canvas {
+            border: 1px solid #ccc;
+            margin: 20px auto;
+            display: block;
+            background-color: white;
+        }
+        .controls {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        button {
+            padding: 8px 16px;
+            margin: 5px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        label {
+            display: inline-block;
+            width: 120px;
+            text-align: right;
+            margin-right: 10px;
+        }
+        input[type="range"] {
+            width: 200px;
+            vertical-align: middle;
+        }
+        .value-display {
+            display: inline-block;
+            width: 40px;
+            text-align: left;
+        }
+        .color-picker {
+            margin: 10px 0;
+        }
+        .color-picker label {
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Turing Pattern Generator</h1>
+    <p>This interactive tool generates reaction-diffusion patterns similar to those described by Alan Turing in his 1952 paper.</p>
+    
+    <div class="controls">
+        <div>
+            <label for="feed">Feed rate:</label>
+            <input type="range" id="feed" min="0.01" max="0.1" step="0.001" value="0.055">
+            <span id="feed-value" class="value-display">0.055</span>
+        </div>
+        
+        <div>
+            <label for="kill">Kill rate:</label>
+            <input type="range" id="kill" min="0.01" max="0.1" step="0.001" value="0.062">
+            <span id="kill-value" class="value-display">0.062</span>
+        </div>
+        
+        <div>
+            <label for="diffuseA">Diffuse rate A:</label>
+            <input type="range" id="diffuseA" min="0.5" max="1.5" step="0.01" value="1.0">
+            <span id="diffuseA-value" class="value-display">1.0</span>
+        </div>
+        
+        <div>
+            <label for="diffuseB">Diffuse rate B:</label>
+            <input type="range" id="diffuseB" min="0.1" max="0.9" step="0.01" value="0.5">
+            <span id="diffuseB-value" class="value-display">0.5</span>
+        </div>
+        
+        <div>
+            <label for="timeStep">Time step:</label>
+            <input type="range" id="timeStep" min="0.1" max="2.0" step="0.1" value="1.0">
+            <span id="timeStep-value" class="value-display">1.0</span>
+        </div>
+
+        <div class="color-picker">
+            <label for="color1">Color 1:</label>
+            <input type="color" id="color1" value="#000000">
+            
+            <label for="color2">Color 2:</label>
+            <input type="color" id="color2" value="#ffffff">
+        </div>
+        
+        <div>
+            <button id="randomize">Randomize Parameters</button>
+            <button id="reset">Reset</button>
+            <button id="pause">Pause</button>
+        </div>
+    </div>
+    
+    <canvas id="canvas" width="400" height="400"></canvas>
+    
+    <div>
+        <p>Current Pattern Type: <span id="pattern-type">Spots</span></p>
+        <p>
+            Adjust the sliders to create different patterns. Try these combinations:
+            <br>Spots: Feed=0.055, Kill=0.062
+            <br>Maze: Feed=0.029, Kill=0.057
+            <br>Waves: Feed=0.018, Kill=0.051
+        </p>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const width = canvas.width;
+        const height = canvas.height;
+        
+        // Create an image data object
+        const imgData = ctx.createImageData(width, height);
+        
+        // Create grid arrays for the chemical concentrations
+        let gridA, gridB, nextA, nextB;
+        
+        // UI elements
+        const feedSlider = document.getElementById('feed');
+        const killSlider = document.getElementById('kill');
+        const diffuseASlider = document.getElementById('diffuseA');
+        const diffuseBSlider = document.getElementById('diffuseB');
+        const timeStepSlider = document.getElementById('timeStep');
+        const color1Picker = document.getElementById('color1');
+        const color2Picker = document.getElementById('color2');
+        const randomizeBtn = document.getElementById('randomize');
+        const resetBtn = document.getElementById('reset');
+        const pauseBtn = document.getElementById('pause');
+        const patternType = document.getElementById('pattern-type');
+        
+        // Display values
+        const feedValue = document.getElementById('feed-value');
+        const killValue = document.getElementById('kill-value');
+        const diffuseAValue = document.getElementById('diffuseA-value');
+        const diffuseBValue = document.getElementById('diffuseB-value');
+        const timeStepValue = document.getElementById('timeStep-value');
+        
+        // Animation control
+        let animationId = null;
+        let isPaused = false;
+        
+        // Initialize the grid
+        function initGrid() {
+            gridA = new Array(width * height).fill(1.0);
+            gridB = new Array(width * height).fill(0.0);
+            nextA = new Array(width * height).fill(0.0);
+            nextB = new Array(width * height).fill(0.0);
+            
+            // Add some random perturbations to start the reaction
+            for (let i = 0; i < 10; i++) {
+                const x = Math.floor(Math.random() * width);
+                const y = Math.floor(Math.random() * height);
+                const radius = Math.floor(Math.random() * 10) + 5;
+                
+                for (let dy = -radius; dy <= radius; dy++) {
+                    for (let dx = -radius; dx <= radius; dx++) {
+                        const px = (x + dx + width) % width;
+                        const py = (y + dy + height) % height;
+                        if (dx*dx + dy*dy <= radius*radius) {
+                            gridB[py * width + px] = 1.0;
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Convert rgb to hex
+        function rgbToHex(r, g, b) {
+            return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+        }
+        
+        // Convert hex to rgb
+        function hexToRgb(hex) {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+                r: parseInt(result[1], 16),
+                g: parseInt(result[2], 16),
+                b: parseInt(result[3], 16)
+            } : null;
+        }
+        
+        // Update the simulation
+        function update() {
+            const feed = parseFloat(feedSlider.value);
+            const kill = parseFloat(killSlider.value);
+            const diffuseA = parseFloat(diffuseASlider.value);
+            const diffuseB = parseFloat(diffuseBSlider.value);
+            const dt = parseFloat(timeStepSlider.value);
+            
+            // Calculate reaction-diffusion for each cell
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const i = y * width + x;
+                    
+                    // Calculate the Laplacian using a 9-point stencil
+                    let sumA = 0;
+                    let sumB = 0;
+                    
+                    for (let dy = -1; dy <= 1; dy++) {
+                        for (let dx = -1; dx <= 1; dx++) {
+                            const px = (x + dx + width) % width;
+                            const py = (y + dy + height) % height;
+                            const j = py * width + px;
+                            
+                            // Weighted sum for the Laplacian
+                            let weight = 1;
+                            if (dx === 0 && dy === 0) weight = -8;
+                            
+                            sumA += weight * gridA[j];
+                            sumB += weight * gridB[j];
+                        }
+                    }
+                    
+                    // Apply the reaction-diffusion equation
+                    const a = gridA[i];
+                    const b = gridB[i];
+                    const reaction = a * b * b;
+                    
+                    nextA[i] = a + dt * (diffuseA * sumA - reaction + feed * (1 - a));
+                    nextB[i] = b + dt * (diffuseB * sumB + reaction - (kill + feed) * b);
+                    
+                    // Clamp values
+                    nextA[i] = Math.max(0, Math.min(1, nextA[i]));
+                    nextB[i] = Math.max(0, Math.min(1, nextB[i]));
+                }
+            }
+            
+            // Swap grids
+            [gridA, nextA] = [nextA, gridA];
+            [gridB, nextB] = [nextB, gridB];
+        }
+        
+        // Render the grid to the canvas
+        function render() {
+            const color1 = hexToRgb(color1Picker.value);
+            const color2 = hexToRgb(color2Picker.value);
+            
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const i = y * width + x;
+                    const idx = (y * width + x) * 4;
+                    
+                    // Calculate color based on chemical B concentration
+                    const t = gridB[i];
+                    imgData.data[idx + 0] = Math.floor(color1.r * (1 - t) + color2.r * t);
+                    imgData.data[idx + 1] = Math.floor(color1.g * (1 - t) + color2.g * t);
+                    imgData.data[idx + 2] = Math.floor(color1.b * (1 - t) + color2.b * t);
+                    imgData.data[idx + 3] = 255; // Alpha
+                }
+            }
+            
+            ctx.putImageData(imgData, 0, 0);
+        }
+        
+        // Main animation loop
+        function animate() {
+            if (!isPaused) {
+                update();
+                render();
+            }
+            animationId = requestAnimationFrame(animate);
+        }
+        
+        // Initialize and start the animation
+        function init() {
+            initGrid();
+            animate();
+            updatePatternType();
+        }
+        
+        // Event listeners for sliders
+        feedSlider.addEventListener('input', () => {
+            feedValue.textContent = feedSlider.value;
+            updatePatternType();
+        });
+        
+        killSlider.addEventListener('input', () => {
+            killValue.textContent = killSlider.value;
+            updatePatternType();
+        });
+        
+        diffuseASlider.addEventListener('input', () => {
+            diffuseAValue.textContent = diffuseASlider.value;
+        });
+        
+        diffuseBSlider.addEventListener('input', () => {
+            diffuseBValue.textContent = diffuseBSlider.value;
+        });
+        
+        timeStepSlider.addEventListener('input', () => {
+            timeStepValue.textContent = timeStepSlider.value;
+        });
+        
+        // Button event listeners
+        randomizeBtn.addEventListener('click', () => {
+            feedSlider.value = (Math.random() * 0.09 + 0.01).toFixed(3);
+            killSlider.value = (Math.random() * 0.09 + 0.01).toFixed(3);
+            diffuseASlider.value = (Math.random() * 1.0 + 0.5).toFixed(2);
+            diffuseBSlider.value = (Math.random() * 0.8 + 0.1).toFixed(2);
+            
+            feedValue.textContent = feedSlider.value;
+            killValue.textContent = killSlider.value;
+            diffuseAValue.textContent = diffuseASlider.value;
+            diffuseBValue.textContent = diffuseBSlider.value;
+            
+            initGrid();
+            updatePatternType();
+        });
+        
+        resetBtn.addEventListener('click', () => {
+            initGrid();
+        });
+        
+        pauseBtn.addEventListener('click', () => {
+            isPaused = !isPaused;
+            pauseBtn.textContent = isPaused ? 'Resume' : 'Pause';
+        });
+        
+        // Update pattern type based on feed and kill parameters
+        function updatePatternType() {
+            const feed = parseFloat(feedSlider.value);
+            const kill = parseFloat(killSlider.value);
+            
+            if (feed < 0.03 && kill < 0.055) {
+                patternType.textContent = "Waves";
+            } else if (feed < 0.04 && kill < 0.06) {
+                patternType.textContent = "Maze";
+            } else if (feed < 0.065 && kill < 0.065) {
+                patternType.textContent = "Spots";
+            } else {
+                patternType.textContent = "Mixed/Unstable";
+            }
+        }
+        
+        // Start the simulation
+        init();
+    </script>
+</body>
+</html>
